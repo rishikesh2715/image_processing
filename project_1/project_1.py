@@ -13,30 +13,30 @@ import matplotlib.pyplot as plt
 import glob
 import numpy as np
 
-imgs = [cv2.imread(file) for file in glob.glob("ImageSet1/ImageSet1/*.jpg")]
-
-imgs_list = []
-
-day_night = []
+# read the images from the folder
+path = glob.glob("ImageSet1/ImageSet1/*.jpg")
+imgs = [cv2.imread(file) for file in path]
 
 for img in imgs:
-    imgs_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    imgs_list.append(imgs_rgb)
+    # convert the image to RGB from BGR
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-for image in imgs_list:
-    gray_pixel = np.sum((image[:, :, 0] == image[:, :, 1]) & (image[:, :, 1] == image[:, :, 2]))
+    # calculate the number of gray pixels and the total number of pixels
+    gray_pixel = np.sum((img[:, :, 0] == img[:, :, 1]) & (img[:, :, 1] == img[:, :, 2]))
+    total_pixel = img.shape[0] * img.shape[1]
 
-    total_pixels = image.shape[0] * image.shape[1]
+    # check if the image contains more than 50% gray pixels
+    is_night = gray_pixel >= total_pixel / 2
 
-    is_night = gray_pixel >= total_pixels / 2
-
+    # if it is is_night then set the title to 'Night' else 'Day'
     if is_night:
-        day_night.append('Night')
+        title = 'Night'
     else:
-        day_night.append('Day')
+        title = 'Day'
 
+    # display the image
     plt.figure(figsize=(12, 8))
-    plt.imshow(image)
-    plt.title('Night' if is_night else 'Day')
+    plt.imshow(img)
+    plt.title(title)
     plt.show()
 
