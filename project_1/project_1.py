@@ -1,20 +1,10 @@
-"""
-Rishikesh
-
-Project 1
-
-Image Processing
-
-python 3.9.5
-"""
-
 import cv2
 import matplotlib.pyplot as plt
 import glob
 import numpy as np
 
 # read the images from the folder
-path = glob.glob("ImageSet1/ImageSet1/*.jpg")
+path = glob.glob("ImageSet1/ImageSet1/*.JPG")
 imgs = [cv2.imread(file) for file in path]
 
 for img in imgs:
@@ -25,8 +15,8 @@ for img in imgs:
     gray_pixel = np.sum((img[:, :, 0] == img[:, :, 1]) & (img[:, :, 1] == img[:, :, 2]))
     total_pixel = img.shape[0] * img.shape[1]
 
-    # check if the image contains more than 50% gray pixels
-    is_night = gray_pixel >= total_pixel / 2
+    # check if the image contains more than 90% gray pixels
+    is_night = gray_pixel >= total_pixel * 0.9
 
     # if it is is_night then set the title to 'Night' else 'Day'
     if is_night:
