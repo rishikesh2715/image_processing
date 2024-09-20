@@ -2,7 +2,10 @@ import cv2
 import glob
 import numpy as np
 
-# path to the ImageSet1 folder
+"""
+Please set the path to the ImageSet1 folder with the "*.JPG" extension which
+would allow the script to read all the files in the folder that ends with .jpg extension
+"""
 path = glob.glob("ImageSet1/ImageSet1/*.JPG")
 
 # read all the images in the folder
