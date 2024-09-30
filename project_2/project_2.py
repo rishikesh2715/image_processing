@@ -7,7 +7,7 @@ from pathlib2 import Path
 def verify_image():
     while True:
         # image_name = input("Enter the image name: ")
-        image_name = "Testimage1.tif"
+        image_name = "Testimage2.tif"
         image_path = Path(image_name)
         if not image_path.exists():
             print(f"Cannot read image named '{image_name}'")
@@ -113,3 +113,14 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+"""
+a = [[a, b ,c]
+    [de, e, f]
+    [g, h, j]]
+
+b = [[j, k, l]
+    [m, n, o]
+    [p, q, r]t p]
+"""
