@@ -7,11 +7,7 @@ from pathlib2 import Path
 def verify_image():
     while True:
         # image_name = input("Enter the image name: ")
-<<<<<<< HEAD
-        image_name = "Testimage2.tif"
-=======
         image_name = "Testimage3.tif"
->>>>>>> 260525bc3cca9c62fde2055c4506ab9463904b8b
         image_path = Path(image_name)
         if not image_path.exists():
             print(f"Cannot read image named '{image_name}'")
