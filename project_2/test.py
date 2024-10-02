@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from scipy import ndimage
 import csv
 from pathlib2 import Path
 
@@ -25,7 +24,7 @@ gaussian_kernel = np.array([[1,4,7,4,1],
                             [1,4,7,4,1]]) / 273
 
 
-img_blurred = cv2.filter2D(img, -1, gaussian_kernel)
+img_blurred = cv2.filter2D(img, cv2.CV_32F, gaussian_kernel)
 
 
 gx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
@@ -36,7 +35,7 @@ grad_y = cv2.filter2D(img_blurred, cv2.CV_32F, gy)
 
 grad_magnitude = np.abs(grad_x) + np.abs(grad_y)
 grad_direction = np.arctan2(grad_y, grad_x) * 180 / np.pi
-threshold = np.max(grad_magnitude) * 0.3
+threshold = np.max(grad_magnitude) * 0.25
 edge_mask = grad_magnitude > threshold
 
 edge_directions = grad_direction[edge_mask] - 90.0
@@ -59,22 +58,9 @@ rotation_angle = 90.0 - dominant_angle
 print(f"rotation_angle: {rotation_angle}")
 
 
-"""
-rotation with scipy ndimage.rotate
-"""
-# r_img = ndimage.rotate(edge_mask, rotation_angle)
-# plt.imshow(r_img, cmap='gray')
-# plt.show()
-
 rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
 
 rotated_image = cv2.warpAffine(img, rotation_matrix, (w, h), borderMode=cv2.BORDER_REPLICATE)
-"""
-Now that rotation is working properly
-
-Lets move on to cropping it.
-
-"""
 
 crop_img_blurred = cv2.filter2D(rotated_image, -1, gaussian_kernel)
 crop_img_blurred = cv2.filter2D(crop_img_blurred, -1, gaussian_kernel)
@@ -82,11 +68,10 @@ crop_grad_x = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gx)
 crop_grad_y = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gy)
 
 crop_grad_magnitude = np.abs(crop_grad_x) + np.abs(crop_grad_y)
-crop_threshold = np.max(crop_grad_magnitude) * 0.3
+crop_threshold = np.max(crop_grad_magnitude) * 0.25
 
 crop_edge_mask = crop_grad_magnitude > crop_threshold
 
-"""How do i find the edges pixel locations now????"""
 
 edge_coords = np.column_stack(np.where(crop_edge_mask))
 
@@ -97,18 +82,19 @@ cropped_image = rotated_image[x_min:x_max, y_min:y_max]
 
 
 
-"""
-Plotting the images
+images = [img, edge_mask, rotated_image, crop_edge_mask, cropped_image]
 
-"""
-images = [img, rotated_image, crop_edge_mask, cropped_image]
-titles = [f"{path}, Dominant Angle: {dominant_angle}", f"Rotated Image, Rotation Angle: {rotation_angle}", "Cropped Edge Mask", "Cropped Image"]
+titles = [f"{path}, Dominant Angle: {dominant_angle}",
+            f"Edge Mask" ,f"Rotated Image, Rotation Angle: {rotation_angle}", 
+            "Cropped Edge Mask", "Cropped Image"]
 
 plt.figure(figsize=(12,8))
 for i in range(len(titles)):
-    plt.subplot(2, 2, i+1)
+    plt.subplot(3, 2, i+1)
     plt.imshow(images[i], cmap='gray')
     plt.title(titles[i])
 
+plt.subplot(3,2,6)
+plt.hist(edge_directions, bins=bins)
 plt.tight_layout()
 plt.show()
