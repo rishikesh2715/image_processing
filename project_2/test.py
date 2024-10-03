@@ -64,6 +64,8 @@ while True:
 
 
         rotation_angle = 90.0 - dominant_angle
+        if rotation_angle < 0:
+            rotation_angle += 180
         print(f"rotation_angle: {rotation_angle}")
 
 
@@ -72,13 +74,13 @@ while True:
         rotated_image = cv2.warpAffine(img, rotation_matrix, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
         crop_img_blurred = cv2.filter2D(rotated_image, cv2.CV_32F, gaussian_kernel)
-        crop_img_blurred = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gaussian_kernel)
-        crop_img_blurred = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gaussian_kernel)
+        # crop_img_blurred = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gaussian_kernel)
+        # crop_img_blurred = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gaussian_kernel)
         crop_grad_x = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gx)
         crop_grad_y = cv2.filter2D(crop_img_blurred, cv2.CV_32F, gy)
 
         crop_grad_magnitude = np.abs(crop_grad_x) + np.abs(crop_grad_y)
-        crop_threshold = np.max(crop_grad_magnitude) * 0.5
+        crop_threshold = np.max(crop_grad_magnitude) * 0.40
 
         crop_edge_mask = crop_grad_magnitude > crop_threshold
 
