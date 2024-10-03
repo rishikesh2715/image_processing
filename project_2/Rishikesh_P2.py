@@ -50,9 +50,6 @@ def rotate_image(img, dominant_angle):
     if rotation_angle < 0:
         rotation_angle += 180
 
-    print(f"Dominant Angle: {dominant_angle}")
-    print(f"Rotation_angle: {rotation_angle}")
-
     (h, w) = img.shape[:2]
     center = (w // 2, h // 2)
 
