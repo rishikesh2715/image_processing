@@ -58,7 +58,6 @@ def rotate_image(img, dominant_angle):
 
     return rotated_image
 
-
 def crop_image(img):
     crop_img_blurred = gaussian_blur(img)
     crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.40)
