@@ -2,30 +2,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
-# Load an image
-image = cv2.imread('lena.png', cv2.IMREAD_GRAYSCALE)
+image = cv2.imread('Proj3.tif', cv2.IMREAD_GRAYSCALE)
 
-# generate fft of the image
-f = np.fft.fft2(image)
-fshift = np.fft.fftshift(f)
+blurred_image = cv2.GaussianBlur(image, (15, 15), sigmaX=10)
 
-# generate magnitude spectrum
-magnitude_spectrum = 20*np.log(np.abs(fshift))
+illumination_removed_image_black = cv2.subtract(image, blurred_image)
 
-# generate phase spectrum
-phase_spectrum = np.angle(fshift)
-
-# plot the magnitude spectrum
-plt.subplot(121)
-plt.imshow(magnitude_spectrum, cmap='gray')
-plt.title('Magnitude Spectrum')
-
-# plot the phase spectrum
-plt.subplot(122)
-plt.imshow(phase_spectrum, cmap='gray')
-plt.title('Phase Spectrum')
-
-plt.tight_layout()
+plt.imshow(illumination_removed_image_black, cmap='gray')
 plt.show()
+
+uniform_image = cv2.subtract(image, illumination_removed_image_black)
+
+fft_image = np.fft.fft2(illumination_removed_image_black)
+
+fft_image = np.fft.fftshift(fft_image)
+
+fft_image =cv2.normalize(fft_image, None, 0, 255, cv2.NORM_MINMAX)
+
+plt.imshow(fft_image, cmap='gray')
+plt.show()
+
+coordinates = [(274, 181), (265, 190), (281, 195), (263, 213), (278, 218), (270, 227), (272, 204)]
+
 
 
