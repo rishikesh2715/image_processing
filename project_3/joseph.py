@@ -18,51 +18,39 @@ def remove_non_uniform_illumination(img):
     # Convert back to uint8
     illumination_corrected = illumination_corrected.astype(np.uint8)
 
-    # Find the Fourier Transform of the image
-    illumination_corrected_fourier = np.log(1 + np.abs(np.fft.fftshift(np.fft.fft2(illumination_corrected))))
+    return illumination_corrected
 
-    return illumination_corrected, illumination_corrected_fourier
-
-def apply_lowpass_filter(image, image_fourier, cutoff, order):
+def apply_lowpass_filter(image_fourier, cutoff, order):
     
-    # Coordinates of each peak in the Fourier spectrum
+    # Coordinates of each peak in the Fourier spectrum (peaks where you want to apply the filter)
     coordinates = [(274, 181), (265, 190), (281, 195), (263, 213), (278, 218), (270, 227), (272, 204)]
 
-    # Create a Butterworth low-pass filter
-    def butterworth_lowpass_filter(shape, cutoff, order):
-        rows, cols = shape
-        crow, ccol = rows // 2, cols // 2
-        x = np.linspace(-ccol, ccol, cols)
-        y = np.linspace(-crow, crow, rows)
-        X, Y = np.meshgrid(x, y)
-        D = np.sqrt(X**2 + Y**2)
-        H = 1 / (1 + (D / cutoff)**(2 * order))
-        return H
-
-    # Adjustable lowpass filter size
-    filter_size = 1
-
     # Get image dimensions
-    rows, cols = image.shape
+    rows, cols = image_fourier.shape
 
-    # Create a mesh grid for frequency coordinates
+    # Create a meshgrid for the coordinates
     u, v = np.meshgrid(np.arange(cols), np.arange(rows))
 
-    # Create the lowpass filter based on Gaussian filter equation (manual filter)
-    manual_lowpass_filter = np.zeros((rows, cols))
+    # Initialize the combined filter as ones (no filtering outside of the target regions)
+    combined_filter = np.ones((rows, cols))
 
+    # Loop through the coordinates and apply the Butterworth filter for each peak
     for coord in coordinates:
-        x, y = coord
-        distance = np.sqrt((u - x) ** 2 + (v - y) ** 2)
-        manual_lowpass_filter = np.maximum(manual_lowpass_filter, np.where(distance <= filter_size, 1, 0))
+        crow, ccol = coord
+        
+        # Calculate the Euclidean distance for the Butterworth filter, centered around each peak
+        distance = np.sqrt((u - crow) ** 2 + (v - ccol) ** 2)  # Align x,y correctly
+        
+        # Apply the Butterworth filter formula centered at each coordinate (peak)
+        butterworth_filter = 1 / (1 + (distance / cutoff)**(2 * order))
+        
+        # Multiply the filters to combine them at each coordinate (applying Butterworth filtering only at these peaks)
+        combined_filter += butterworth_filter
 
-    # Apply the Butterworth low-pass filter
-    butterworth_filter = butterworth_lowpass_filter(image.shape, cutoff, order)
+    # Normalize the combined filter to avoid overflow
+    combined_filter = cv2.normalize(combined_filter, None, 0, 1, cv2.NORM_MINMAX)
 
-    # Combine the Butterworth filter with the manual filter
-    combined_filter = butterworth_filter * manual_lowpass_filter
-
-    # Apply the combined filter to the Fourier spectrum
+    # Apply the combined Butterworth filter to the Fourier-transformed image
     filtered_fourier = image_fourier * combined_filter
 
     # Perform the inverse Fourier transform to get the filtered image
@@ -73,38 +61,47 @@ def apply_lowpass_filter(image, image_fourier, cutoff, order):
     filtered_image = cv2.normalize(filtered_image, None, 0, 255, cv2.NORM_MINMAX)
     filtered_image = filtered_image.astype(np.uint8)
 
-    return filtered_image, filtered_fourier
+    return filtered_image, combined_filter
 
 def main():
     # Load the image in grayscale
     img = cv2.imread("Proj3.tif", cv2.IMREAD_GRAYSCALE)
 
-    corrected_image, corrected_image_fourier = remove_non_uniform_illumination(img)
+    # Step 1: Remove non-uniform illumination
+    corrected_image = remove_non_uniform_illumination(img)
 
-    # Adjust the cutoff and order if needed
-    filtered_image, filtered_image_fourier = apply_lowpass_filter(corrected_image, corrected_image_fourier, cutoff=50, order=2)
+    # Step 2: Perform Fourier transform on the corrected image
+    corrected_image_fourier = np.fft.fft2(corrected_image)
+    corrected_image_fourier_shifted = np.fft.fftshift(corrected_image_fourier)
 
-    # Display the original and corrected images
+    # Step 3: Apply the Butterworth lowpass filter in the Fourier domain
+    filtered_image, combined_filter = apply_lowpass_filter(corrected_image_fourier_shifted, cutoff=1, order=2)
+
+    # Step 4: Rotate the filtered image by 180 degrees
+    # filtered_image = np.rot90(filtered_image, 2)
+
+    # Step 5: Visualize results
     plt.figure(figsize=(12, 6))
+    plt.subplot(2, 2, 1)
     plt.title('Original Image')
     plt.imshow(img, cmap='gray')
+    
+    # plt.figure(figsize=(12, 6))
+    plt.subplot(2, 2, 2)
+    plt.title('Combined Filter')
+    plt.imshow(combined_filter, cmap='gray')
 
-    plt.figure(figsize=(12, 6))
+    # plt.figure(figsize=(12, 6))
+    plt.subplot(2, 2, 3)
+    plt.title('Extracted Pattern')
+    plt.imshow(filtered_image, cmap='gray')
+
+    # plt.figure(figsize=(12, 6))
+    plt.subplot(2, 2, 4)
     plt.title('Illumination Corrected Image')
     plt.imshow(corrected_image, cmap='gray')
 
-    plt.figure(figsize=(12, 6))
-    plt.title('Spectrum of Illumination Corrected Image')
-    plt.imshow(corrected_image_fourier, cmap='gray')
-
-    plt.figure(figsize=(12, 6))
-    plt.title('Filtered Image')
-    plt.imshow(filtered_image, cmap='gray')
-    
-    plt.figure(figsize=(12, 6))
-    plt.title('Filtered Image Spectrum')
-    plt.imshow(np.log(1 + np.abs(filtered_image_fourier)), cmap='gray')
-
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
