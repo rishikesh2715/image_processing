@@ -1,97 +1,143 @@
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
+from pathlib2 import Path
 
 
-# ask the user if they would like to open the camera or a image file
-print('Would you like to open the camera or an image file?')
-print('1. Camera')
-print('2. Image file')
+def read_image():
+    # enter 1 or 2 to coose between webcame video or image
+    print("Enter 1 to use webcam video or 2 to use an image")
+    choice = input()
+    if choice == '1':
+        cap = cv2.VideoCapture(0)
+        while True:
+            ret, frame = cap.read()
+            cv2.imshow("frame", frame)
 
-choice = int(input('Enter your choice: '))
+            # wait for enter to get presses and then store the frame in img
+            if cv2.waitKey(1) & 0xFF == ord('\r'):
+                img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                break
 
-if choice == 1:
-    # camera parameters
-    camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    camera.set(cv2.CAP_PROP_FPS, 30.0)
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('m','j','p','g'))
-    camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M','J','P','G'))
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            # IF 'q' is pressed, break the loop
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-    # read video frame in while loop
-    while True:
-        ret, frame = camera.read()
-        if not ret:
-            break
+        cap.release()
+        cv2.destroyAllWindows()
+        return img
+    
+    elif choice == '2':
+        while True:
+            image_name = input("Enter the image name: ")
+            image_path = Path(image_name)
+            if not image_path.exists():
+                print(f"Cannot read image named '{image_name}'")
+            else:
+                img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+                return img
+    else:
+        print("Invalid choice. Enter 1 or 2")
+        return None
+    
 
-        # display the frame
-        cv2.imshow('Frame', frame)
+def gaussian_blur(img):
+    gaussian_kernel = np.array([[0, 0, 1, 2, 1, 0, 0],
+                                [0, 3, 13, 22, 13, 3, 0],
+                                [1, 13, 59, 97, 59, 13, 1],
+                                [2, 22, 97, 159, 97, 22, 2],
+                                [1, 13, 59, 97, 59, 13, 1],
+                                [0, 3, 13, 22, 13, 3, 0],
+                                [0, 0, 1, 2, 1, 0, 0]], dtype=np.float32) / 1003
 
-        # check if enter is pressed
-        if cv2.waitKey(1) & 0xFF == 13:
-            image = frame
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            break
+    img_blurred = cv2.filter2D(img, cv2.CV_32F, gaussian_kernel)
+    return img_blurred
 
-        # exit on pressing 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+def sobel_kernel(img, threshold_value):
+    gx = np.array([[-1, 0, 1],[-2, 0, 2], [-1, 0, 1]])
+    gy = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
-    # release the camera and close the window
-    camera.release()
-    cv2.destroyAllWindows()
+    grad_x = cv2.filter2D(img, cv2.CV_32F, gx)
+    grad_y = cv2.filter2D(img, cv2.CV_32F, gy)
 
-elif choice == 2:
-    # ask the user to enter the path of the image file
-    path = input('Enter the path of the image file: ')
-    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        print('Invalid path')
-        exit()
+    grad_magnitude = np.abs(grad_x) + np.abs(grad_y)
+    threshold = np.max(grad_magnitude) * threshold_value
+    edge_mask = grad_magnitude > threshold
+    grad_direction = np.arctan2(grad_y, grad_x) * 180 / np.pi
+    edge_directions = (grad_direction[edge_mask] - 90.0) % 180
 
-else:
-    print('Invalid choice')
-    exit()
+    hist, bin_edges = np.histogram(edge_directions, bins=np.arange(1, 181, 1))
+    dominant_angle_index = np.argmax(hist)
+    dominant_angle = bin_edges[dominant_angle_index]
 
+    return edge_mask, dominant_angle
 
-# check if the image is captured
-if image is None:
-    print('No image captured')
-    exit()
+def rotate_image(img, dominant_angle):
+    rotation_angle = 90 - dominant_angle
+    if rotation_angle < 0:
+        rotation_angle += 180
 
+    (h, w) = img.shape[:2]
+    center = (w // 2, h // 2)
 
-# plot the image
-plt.figure(figsize=(14, 10))
-plt.imshow(image, cmap='gray')
-plt.show()
+    rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
+    rotated_image = cv2.warpAffine(img, rotation_matrix, (w, h), borderMode=cv2.BORDER_REPLICATE)
 
-# sobel kernel
-sobel_x = np.array([[-1, 0, 1], 
-                    [-2, 0, 2], 
-                    [-1, 0, 1]])
+    return rotated_image
 
-sobel_y = np.array([[-1, -2, -1],
-                    [0, 0, 0],
-                    [1, 2, 1]])
+def crop_image(img):
+    crop_img_blurred = gaussian_blur(img)
+    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.40)
+    
+    edge_coords = np.column_stack(np.where(crop_edge_mask))
 
-# apply the sobel kernel to the image
-image_sobel_x = cv2.filter2D(image, -1, sobel_x)
-image_sobel_y = cv2.filter2D(image, -1, sobel_y)
+    x_min, y_min = edge_coords.min(axis=0)
+    x_max, y_max = edge_coords.max(axis=0)
 
-# magnitude of the gradient
-magnitude = np.sqrt(image_sobel_x**2 + image_sobel_y**2)
+    cropped_img = img[x_min:x_max, y_min:y_max]
 
-# plot the magnitude of the gradient
-plt.figure(figsize=(14, 10))
-plt.imshow(magnitude, cmap='gray')
-plt.show()
+    return cropped_img
 
-# apply thresholding to the magnitude of the gradient
-threshold = 100
-magnitude_thresholded = np.where(magnitude > threshold, 255, 0)
+# Function to crop the ROI of the image ( roi is the number and suit of the card)
+def card_roi(cropped_img):
+    # apply binary thresholding
+    _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY)
 
-# plot the thresholded image
-plt.figure(figsize=(14, 10))
-plt.imshow(magnitude_thresholded, cmap='gray')
+    # crop the left top corner of the image
+    number_roi = thresh[0:257, 0:168]
+    suit_roi = thresh[975:1480, 110:570]
+    return number_roi, suit_roi
+
+def plot_images(img, cropped_img, number_roi, suit_roi):
+    plt.figure(figsize=(8,6))
+    plt.subplot(2,2,1)
+    plt.imshow(img, cmap='gray')
+    plt.title("Original Image")
+
+    plt.subplot(2,2,2)
+    plt.imshow(cropped_img, cmap='gray')
+    plt.title("Rotated & Cropped Image")
+
+    plt.subplot(2,2,3)
+    plt.imshow(number_roi, cmap='gray')
+    plt.title("ROI of the card number")
+
+    plt.subplot(2,2,4)
+    plt.imshow(suit_roi, cmap='gray')
+    plt.title("ROI of the card suit")
+
+    plt.tight_layout()
+    plt.show()
+
+def main():
+    img = read_image()
+    blurred_image = gaussian_blur(img)
+    edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.25)
+    rotated_image = rotate_image(blurred_image, dominant_angle)
+    cropped_image = crop_image(rotated_image)
+    number_roi, suit_roi = card_roi(cropped_image)
+    plot_images(img, cropped_image, number_roi, suit_roi)
+
+if __name__ =="__main__":
+    main()
 

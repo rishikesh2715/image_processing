@@ -77,6 +77,12 @@ cutoff = 30  # Adjust the cutoff frequency as needed
 order = 2    # Adjust the filter order as needed
 H = butterworth_lowpass_filter((rows, cols), cutoff, order)
 
+
+"""
+my n.
+
+"""
+
 # Since H is real and we have complex DFT, we need to expand H to two channels
 H = H.astype(np.float32)
 H = np.stack((H, H), axis=-1)  # Make it two-channel to match DFT shape
