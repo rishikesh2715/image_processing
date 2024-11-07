@@ -69,6 +69,7 @@ def sobel_kernel(img, threshold_value):
     hist, bin_edges = np.histogram(edge_directions, bins=np.arange(1, 181, 1))
     dominant_angle_index = np.argmax(hist)
     dominant_angle = bin_edges[dominant_angle_index]
+    print(f"Dominant Angle: {dominant_angle}")
 
     return edge_mask, dominant_angle
 
@@ -87,7 +88,7 @@ def rotate_image(img, dominant_angle):
 
 def crop_image(img):
     crop_img_blurred = gaussian_blur(img)
-    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.40)
+    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.60)
     
     edge_coords = np.column_stack(np.where(crop_edge_mask))
 
