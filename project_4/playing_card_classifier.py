@@ -104,8 +104,8 @@ def card_roi(cropped_img):
     _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY)
 
     # crop the left top corner of the image
-    number_roi = thresh[0:257, 0:168]
-    suit_roi = thresh[975:1480, 110:570]
+    number_roi = thresh[0:225, 0:160]
+    suit_roi = thresh[225:390, 0:160]
     return number_roi, suit_roi
 
 def plot_images(img, cropped_img, number_roi, suit_roi):
