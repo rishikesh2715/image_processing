@@ -60,7 +60,7 @@ def rotate_image(img, dominant_angle):
 
 def crop_image(img):
     crop_img_blurred = gaussian_blur(img)
-    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.40)
+    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.60)
     
     edge_coords = np.column_stack(np.where(crop_edge_mask))
 
@@ -87,7 +87,7 @@ def plot_images(img, cropped_img):
 def main():
     img = read_image()
     blurred_image = gaussian_blur(img)
-    edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.25)
+    edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.1)
     rotated_image = rotate_image(blurred_image, dominant_angle)
     cropped_image = crop_image(rotated_image)
     plot_images(img, cropped_image)
