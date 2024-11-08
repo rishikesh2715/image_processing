@@ -5,8 +5,8 @@ from pathlib2 import Path
 
 
 def read_image():
-    # enter 1 or 2 to coose between webcame video or image
-    print("Enter 1 to use webcam video or 2 to use an image")
+    # Enter 1, 2, or 3 to choose between webcam video, single image, or images from a folder
+    print("Enter 1 to use webcam video, 2 to use an image, or 3 to process images from a folder")
     choice = input()
     if choice == '1':
         cap = cv2.VideoCapture(0)
@@ -14,19 +14,19 @@ def read_image():
             ret, frame = cap.read()
             cv2.imshow("frame", frame)
 
-            # wait for enter to get presses and then store the frame in img
+            # Wait for Enter key to get pressed and then store the frame in img
             if cv2.waitKey(1) & 0xFF == ord('\r'):
                 img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 break
 
-            # IF 'q' is pressed, break the loop
+            # If 'q' is pressed, break the loop
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         cap.release()
         cv2.destroyAllWindows()
-        return img
-    
+        return [img]  # Return as a list for consistency
+
     elif choice == '2':
         while True:
             image_name = input("Enter the image name: ")
@@ -35,11 +35,29 @@ def read_image():
                 print(f"Cannot read image named '{image_name}'")
             else:
                 img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
-                return img
+                return [img]  # Return as a list for consistency
+    elif choice == '3':
+        while True:
+            folder_path = input("Enter the folder path containing images: ")
+            folder = Path(folder_path)
+            if not folder.exists() or not folder.is_dir():
+                print(f"Cannot find folder at '{folder_path}'")
+            else:
+                # Read all image files in the folder
+                image_files = list(folder.glob('*.jpg')) + list(folder.glob('*.jpeg')) + list(folder.glob('*.png'))
+                if not image_files:
+                    print(f"No image files found in folder '{folder_path}'")
+                else:
+                    images = []
+                    for img_file in image_files:
+                        img = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
+                        if img is not None:
+                            images.append(img)
+                    return images
     else:
-        print("Invalid choice. Enter 1 or 2")
+        print("Invalid choice. Enter 1, 2, or 3")
         return None
-    
+
 
 def gaussian_blur(img):
     gaussian_kernel = np.array([[0, 0, 1, 2, 1, 0, 0],
@@ -53,8 +71,9 @@ def gaussian_blur(img):
     img_blurred = cv2.filter2D(img, cv2.CV_32F, gaussian_kernel)
     return img_blurred
 
+
 def sobel_kernel(img, threshold_value):
-    gx = np.array([[-1, 0, 1],[-2, 0, 2], [-1, 0, 1]])
+    gx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
     gy = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
     grad_x = cv2.filter2D(img, cv2.CV_32F, gx)
@@ -73,6 +92,7 @@ def sobel_kernel(img, threshold_value):
 
     return edge_mask, dominant_angle
 
+
 def rotate_image(img, dominant_angle):
     rotation_angle = 90 - dominant_angle
     if rotation_angle < 0:
@@ -86,10 +106,13 @@ def rotate_image(img, dominant_angle):
 
     return rotated_image
 
+
 def crop_image(img):
     crop_img_blurred = gaussian_blur(img)
-    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.60)
-    
+    crop_img_blurred = gaussian_blur(crop_img_blurred)
+    crop_img_blurred = gaussian_blur(crop_img_blurred)
+    crop_edge_mask, crop_dominant_angle = sobel_kernel(crop_img_blurred, threshold_value=0.6)
+
     edge_coords = np.column_stack(np.where(crop_edge_mask))
 
     x_min, y_min = edge_coords.min(axis=0)
@@ -99,31 +122,32 @@ def crop_image(img):
 
     return cropped_img
 
-# Function to crop the ROI of the image ( roi is the number and suit of the card)
+
 def card_roi(cropped_img):
-    # apply binary thresholding
+    # Apply binary thresholding
     _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY)
 
-    # crop the left top corner of the image
-    number_roi = thresh[0:225, 0:160]
-    suit_roi = thresh[225:390, 0:160]
+    # Crop the left top corner of the image
+    number_roi = thresh[25:300, 50:225]
+    suit_roi = thresh[300:560, 50:225]
     return number_roi, suit_roi
+
 
 def template_matching(roi, templates, template_names):
     # Ensure ROI is of the right data type (uint8)
     roi = roi.astype(np.uint8)
-    
+
     best_match_name = None
     best_match_score = -1
     matched_template = None
-    
+
     for template, name in zip(templates, template_names):
         # Ensure the template is also uint8
         template = template.astype(np.uint8)
-        
+
         result = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, _ = cv2.minMaxLoc(result)
-        
+
         if max_val > best_match_score:
             best_match_score = max_val
             best_match_name = name
@@ -144,48 +168,39 @@ def load_templates(template_paths):
 
 
 def plot_images(img, cropped_img, number_roi, suit_roi):
-    plt.figure(figsize=(8,6))
-    plt.subplot(2,2,1)
+    plt.figure(figsize=(8, 6))
+    plt.subplot(2, 2, 1)
     plt.imshow(img, cmap='gray')
     plt.title("Original Image")
 
-    plt.subplot(2,2,2)
+    plt.subplot(2, 2, 2)
     plt.imshow(cropped_img, cmap='gray')
     plt.title("Rotated & Cropped Image")
 
-    plt.subplot(2,2,3)
+    plt.subplot(2, 2, 3)
     plt.imshow(number_roi, cmap='gray')
     plt.title("ROI of the card number")
 
-    plt.subplot(2,2,4)
+    plt.subplot(2, 2, 4)
     plt.imshow(suit_roi, cmap='gray')
     plt.title("ROI of the card suit")
 
     plt.tight_layout()
     plt.show()
 
-def main():
-    img = read_image()
+
+def process_image(img, number_templates, number_names, suit_templates, suit_names):
     blurred_image = gaussian_blur(img)
-    edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.25)
+    blurred_image = gaussian_blur(blurred_image)
+    blurred_image = gaussian_blur(blurred_image)
+    edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.2)
     rotated_image = rotate_image(blurred_image, dominant_angle)
     cropped_image = crop_image(rotated_image)
     number_roi, suit_roi = card_roi(cropped_image)
-    
-    # Load number and suit templates
-    number_template_paths = ["templates/numbers/A.jpeg", "templates/numbers/2.jpeg", "templates/numbers/3.jpeg",
-                             "templates/numbers/4.jpeg", "templates/numbers/5.jpeg", "templates/numbers/6.jpeg",
-                             "templates/numbers/7.jpeg", "templates/numbers/8.jpeg", "templates/numbers/9.jpeg",
-                             "templates/numbers/10.jpeg", "templates/numbers/J.jpeg", "templates/numbers/Q.jpeg",
-                             "templates/numbers/K.jpeg"]
-    suit_template_paths = ["templates/suits/club.jpeg", "templates/suits/diamond.jpeg", "templates/suits/heart.jpeg", "templates/suits/spade.jpeg"] 
-    
-    number_templates, number_names = load_templates(number_template_paths)
-    suit_templates, suit_names = load_templates(suit_template_paths)
 
     # Apply template matching to number ROI
     best_number, number_score, matched_number_template = template_matching(number_roi, number_templates, number_names)
-    
+
     # Apply template matching to suit ROI
     best_suit, suit_score, matched_suit_template = template_matching(suit_roi, suit_templates, suit_names)
 
@@ -195,18 +210,45 @@ def main():
 
     plot_images(img, cropped_image, number_roi, suit_roi)
 
-    if matched_number_template is not None:
-        plt.figure(figsize=(5, 5))
-        plt.title(f"Matched Number Template: {best_number}")
-        plt.imshow(matched_number_template, cmap='gray')
-        plt.show()
+    # if matched_number_template is not None:
+    #     plt.figure(figsize=(5, 5))
+    #     plt.title(f"Matched Number Template: {best_number}")
+    #     plt.imshow(matched_number_template, cmap='gray')
+    #     plt.show()
 
-    if matched_suit_template is not None:
-        plt.figure(figsize=(5, 5))
-        plt.title(f"Matched Suit Template: {best_suit}")
-        plt.imshow(matched_suit_template, cmap='gray')
-        plt.show()
+    # if matched_suit_template is not None:
+    #     plt.figure(figsize=(5, 5))
+    #     plt.title(f"Matched Suit Template: {best_suit}")
+    #     plt.imshow(matched_suit_template, cmap='gray')
+    #     plt.show()
 
-if __name__ =="__main__":
+
+def main():
+    images = read_image()
+    if images is None:
+        print("No images to process.")
+        return
+
+    # Load number and suit templates
+    number_template_paths = [
+        "templates/numbers/A.jpeg", "templates/numbers/2.jpeg", "templates/numbers/3.jpeg",
+        "templates/numbers/4.jpeg", "templates/numbers/5.jpeg", "templates/numbers/6.jpeg",
+        "templates/numbers/7.jpeg", "templates/numbers/8.jpeg", "templates/numbers/9.jpeg",
+        "templates/numbers/10.jpeg", "templates/numbers/J.jpeg", "templates/numbers/Q.jpeg",
+        "templates/numbers/K.jpeg"
+    ]
+    suit_template_paths = [
+        "templates/suits/club.jpeg", "templates/suits/diamond.jpeg",
+        "templates/suits/heart.jpeg", "templates/suits/spade.jpeg"
+    ]
+
+    number_templates, number_names = load_templates(number_template_paths)
+    suit_templates, suit_names = load_templates(suit_template_paths)
+
+    for idx, img in enumerate(images):
+        print(f"\nProcessing Image {idx + 1}/{len(images)}")
+        process_image(img, number_templates, number_names, suit_templates, suit_names)
+
+
+if __name__ == "__main__":
     main()
-

@@ -87,7 +87,9 @@ def rotate_image(img, dominant_angle):
 
 def crop_image(img):
     crop_img_blurred = gaussian_blur(img)
-    crop_edge_mask, crop_dominant_angle = sobel_kernel(img, threshold_value=0.40)
+    crop_img_blurred = gaussian_blur(crop_img_blurred)
+    crop_img_blurred = gaussian_blur(crop_img_blurred)
+    crop_edge_mask, crop_dominant_angle = sobel_kernel(crop_img_blurred, threshold_value=0.40)
 
     edge_coords = np.column_stack(np.where(crop_edge_mask))
 
@@ -101,7 +103,7 @@ def crop_image(img):
 # Function to crop the ROI of the image (roi is the number and suit of the card)
 def card_roi(cropped_img):
     # apply binary thresholding
-    _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY_INV)
+    _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY)
 
     # crop the left top corner of the image
     number_roi = thresh[0:225, 0:160]
@@ -109,8 +111,8 @@ def card_roi(cropped_img):
     return number_roi, suit_roi
 
 def load_templates():
-    numbers_path = Path('Template/numbers')
-    suits_path = Path('Template/suits')
+    numbers_path = Path('templates/numbers')
+    suits_path = Path('templates/suits')
 
     number_templates = {}
     suit_templates = {}
@@ -123,7 +125,7 @@ def load_templates():
             if template is None:
                 print(f"Failed to load number template {filename}")
                 continue
-            _, template = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY_INV)
+            _, template = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY)
             number_templates[name] = template
 
     # Load suit templates
@@ -134,7 +136,7 @@ def load_templates():
             if template is None:
                 print(f"Failed to load suit template {filename}")
                 continue
-            _, template = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY_INV)
+            _, template = cv2.threshold(template, 127, 255, cv2.THRESH_BINARY)
             suit_templates[name] = template
 
     return number_templates, suit_templates
@@ -147,6 +149,7 @@ def match_templates(roi, templates):
     for name, template in templates.items():
         # Resize ROI to match template size
         roi_resized = cv2.resize(roi, (template.shape[1], template.shape[0]))
+        roi_resized = roi_resized.astype(np.uint8)
         result = cv2.matchTemplate(roi_resized, template, cv2.TM_CCOEFF_NORMED)
         (_, score, _, _) = cv2.minMaxLoc(result)
 
@@ -182,6 +185,8 @@ def main():
     if img is None:
         return
     blurred_image = gaussian_blur(img)
+    blurred_image = gaussian_blur(blurred_image)
+    blurred_image = gaussian_blur(blurred_image)
     edge_mask, dominant_angle = sobel_kernel(blurred_image, threshold_value=0.1)
     print(f"Dominant Angle: {dominant_angle}")
     rotated_image = rotate_image(blurred_image, dominant_angle)
