@@ -1,0 +1,18 @@
+
+
+# add the following lines to the .gitignore file
+
+# avi files
+*.avi
+
+# mp4 files
+*.mp4
+
+# mkv files
+*.mkv
+
+# mov files
+*.mov
+
+# wmv files
+*.wmv
