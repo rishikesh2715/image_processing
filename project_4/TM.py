@@ -128,8 +128,8 @@ def card_roi(cropped_img):
     _, thresh = cv2.threshold(cropped_img, 70, 255, cv2.THRESH_BINARY)
 
     # Crop the left top corner of the image
-    number_roi = thresh[25:300, 50:225]
-    suit_roi = thresh[300:560, 50:225]
+    number_roi = thresh[25:250, 25:200]
+    suit_roi = thresh[200:450, 25:200]
     return number_roi, suit_roi
 
 
@@ -209,19 +209,6 @@ def process_image(img, number_templates, number_names, suit_templates, suit_name
     print(f"Best matched suit: {best_suit} with score: {suit_score}")
 
     plot_images(img, cropped_image, number_roi, suit_roi)
-
-    # if matched_number_template is not None:
-    #     plt.figure(figsize=(5, 5))
-    #     plt.title(f"Matched Number Template: {best_number}")
-    #     plt.imshow(matched_number_template, cmap='gray')
-    #     plt.show()
-
-    # if matched_suit_template is not None:
-    #     plt.figure(figsize=(5, 5))
-    #     plt.title(f"Matched Suit Template: {best_suit}")
-    #     plt.imshow(matched_suit_template, cmap='gray')
-    #     plt.show()
-
 
 def main():
     images = read_image()
