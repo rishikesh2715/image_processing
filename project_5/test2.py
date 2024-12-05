@@ -1,9 +1,11 @@
 import cv2
 import numpy as np
-from pathlib import Path
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 class WormSegmenter:
+    # [Previous WormSegmenter class code remains exactly the same]
+    # I'm omitting it here for brevity but it should stay intact
     def __init__(self):
         self.kernel = np.ones((3,3), np.uint8)
         
@@ -119,79 +121,110 @@ class WormSegmenter:
         
         return cleaned_mask
 
-def process_video(video_path, output_dir=None, display=True):
+def post_process_mask(mask):
     """
-    Process entire video and optionally save results.
+    Additional cleanup of the mask using erosion and dilation.
+    Args:
+        mask: Initial binary mask
+    Returns:
+        Cleaned binary mask
+    """
+    # Create a slightly larger kernel for more aggressive cleaning
+    kernel = np.ones((6,6), np.uint8)  # Increased from 3x3 to 5x5
+    
+    # Erode to remove small artifacts
+    eroded = cv2.erode(mask, kernel, iterations=1)
+    
+    # Dilate to restore worm size
+    # cleaned = eroded  # No need to dilate
+    cleaned = cv2.dilate(eroded, kernel, iterations=2)
+    
+    return cleaned
+
+def process_single_frame(video_path, frame_number=0):
+    """
+    Process a single frame from the video.
     Args:
         video_path: Path to input video file
-        output_dir: Directory to save output frames (optional)
-        display: Whether to display results (default True)
+        frame_number: Which frame to process (default 0)
+    Returns:
+        tuple: (original frame, initial mask, cleaned mask, overlay)
     """
-    # Create output directory if needed
-    if output_dir:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-    
     # Initialize video capture
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
     
-    # Initialize segmenter
+    # Set frame position
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+    
+    # Read frame
+    ret, frame = cap.read()
+    if not ret:
+        raise ValueError(f"Could not read frame {frame_number}")
+    
+    # Initialize segmenter and process frame
     segmenter = WormSegmenter()
-    
-    frame_num = 0
-    while True:
-        # Read frame
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        # Segment frame
-        mask = segmenter.segment_frame(frame)
+    initial_mask = segmenter.segment_frame(frame)
 
-        
-
-        plt.imshow(mask, cmap='gray')
-        plt.title(f"Frame {frame_num}")
-        plt.show()
-        
-        # Create visualization
-        vis = np.zeros((frame.shape[0], frame.shape[1], 3), dtype=np.uint8)
-        vis[mask > 0] = [0, 255, 0]  # Green mask
-        overlay = cv2.addWeighted(frame, 0.7, vis, 0.3, 0)
-        
-        # Save if requested
-        if output_dir:
-            cv2.imwrite(str(output_dir / f"frame_{frame_num:04d}.png"), overlay)
-        
-        # Display if requested
-        if display:
-            aspect_ratio = frame.shape[0] / frame.shape[1]
-            desired_width = 1500
-            new_height = int(desired_width * aspect_ratio)
-            cv2.namedWindow('Segmentation', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('Segmentation', desired_width, new_height)  # Adjust these numbers as needed
-            cv2.imshow('Segmentation', overlay)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-                
-        frame_num += 1
     
-        
-    # Cleanup
+    
+    # Additional cleanup
+    cleaned_mask = post_process_mask(initial_mask)
+    
+    # Create overlay with cleaned mask
+    vis = np.zeros_like(frame)
+    vis[cleaned_mask > 0] = [0, 255, 0]  # Green mask
+    overlay = cv2.addWeighted(frame, 0.7, vis, 0.3, 0)
+    
+    # Clean up
     cap.release()
-    if display:
-        cv2.destroyAllWindows()
+    
+    return frame, initial_mask, cleaned_mask, overlay
+
+def display_results(frame, initial_mask, cleaned_mask, overlay):
+    """
+    Display all steps of the process using matplotlib.
+    """
+    plt.figure(figsize=(18, 15))
+
+    plt.subplot(2, 2, 1)
+    plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    plt.title('Original Frame')
+
+    plt.subplot(2, 2, 2)
+    plt.imshow(initial_mask, cmap='gray')
+
+    # save the initial mask
+    cv2.imwrite("initial_mask.png", initial_mask)
+    plt.title('Initial Mask')
+
+    plt.subplot(2, 2, 3)
+    plt.imshow(cleaned_mask, cmap='gray')
+    plt.title('Cleaned Mask')
+
+    plt.subplot(2, 2, 4)
+    plt.imshow(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+    plt.title('Overlay')
+
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     # Example usage
-    video_path = "BZ33C_Chip1D_Worm27.avi"  # Replace with your video path
-    # video_path = "BZ33C_Chip2A_Worm06.avi"  # Replace with your video path
-    # video_path = "WT_G10_03.avi"  # Replace with your video path
-    # output_dir = "output"          # Replace with desired output directory
+    video_path = "BZ33C_Chip1D_Worm27.avi"
+    
+    # Choose which frame to process (e.g., frame 50)
+    frame_number = 14
+
+    
     
     try:
-        process_video(video_path, display=True)
+        # Process single frame
+        frame, initial_mask, cleaned_mask, overlay = process_single_frame(video_path, frame_number)
+        
+        # Display results
+        display_results(frame, initial_mask, cleaned_mask, overlay)
+        
     except Exception as e:
         print(f"Error processing video: {e}")
