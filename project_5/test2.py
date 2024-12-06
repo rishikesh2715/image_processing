@@ -55,6 +55,9 @@ class WormSegmenter:
         
         # Close operation to connect worm segments
         closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+        # plt.imshow(closed, cmap='gray')
+        # plt.show()
         
         return closed
 
@@ -130,17 +133,40 @@ def post_process_mask(mask):
         Cleaned binary mask
     """
     # Create a slightly larger kernel for more aggressive cleaning
-    kernel = np.ones((6,6), np.uint8)  # Increased from 3x3 to 5x5
+    # kernel = np.ones((6,6), np.uint8)  # Increased from 3x3 to 5x5
     
-    # Erode to remove small artifacts
-    eroded = cv2.erode(mask, kernel, iterations=1)
+    # # Erode to remove small artifacts
+    # eroded = cv2.erode(mask, kernel, iterations=1)
     
-    # Dilate to restore worm size
-    # cleaned = eroded  # No need to dilate
-    cleaned = cv2.dilate(eroded, kernel, iterations=2)
+    # # Dilate to restore worm size
+    # # cleaned = eroded  # No need to dilate
+    # cleaned = cv2.dilate(eroded, kernel, iterations=2)
     
-    return cleaned
+    # return cleaned
 
+    # get structuring element
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+
+    # apply morphological operations
+    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    # close operation to connect worm segments
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+
+    plt.figure(figsize=(16, 8))
+    plt.subplot(1, 2, 1)
+    plt.imshow(opened, cmap='gray')
+    plt.title('closed')
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(closed, cmap='gray')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+    return closed
 def process_single_frame(video_path, frame_number=0):
     """
     Process a single frame from the video.
@@ -190,11 +216,11 @@ def display_results(frame, initial_mask, cleaned_mask, overlay):
 
     plt.subplot(2, 2, 1)
     plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    cv2.imwrite("original_frame.png", frame)
     plt.title('Original Frame')
 
     plt.subplot(2, 2, 2)
     plt.imshow(initial_mask, cmap='gray')
-
     # save the initial mask
     cv2.imwrite("initial_mask.png", initial_mask)
     plt.title('Initial Mask')
