@@ -4,19 +4,11 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 class WormSegmenter:
-    # [Previous WormSegmenter class code remains exactly the same]
-    # I'm omitting it here for brevity but it should stay intact
     def __init__(self):
         self.kernel = np.ones((3,3), np.uint8)
         
     def preprocess_frame(self, frame):
-        """
-        Preprocess frame to enhance worm visibility.
-        Args:
-            frame: Input frame (can be BGR or grayscale)
-        Returns:
-            Preprocessed binary image
-        """
+
         # Convert to grayscale if needed
         if len(frame.shape) == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -39,13 +31,7 @@ class WormSegmenter:
         return binary
 
     def remove_grid(self, binary):
-        """
-        Remove the microfluidic device grid pattern.
-        Args:
-            binary: Binary image with grid
-        Returns:
-            Binary image with reduced grid interference
-        """
+ 
         # Use morphological operations to reduce grid
         kernel_size = 3
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
@@ -62,13 +48,7 @@ class WormSegmenter:
         return closed
 
     def get_worm_mask(self, binary):
-        """
-        Extract the worm from binary image using connected components.
-        Args:
-            binary: Preprocessed binary image
-        Returns:
-            Binary mask containing only the worm
-        """
+
         # Find connected components
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
             binary, connectivity=8
@@ -87,13 +67,7 @@ class WormSegmenter:
         return worm_mask
 
     def clean_mask(self, mask):
-        """
-        Clean up the worm mask using morphological operations.
-        Args:
-            mask: Binary mask of the worm
-        Returns:
-            Cleaned binary mask
-        """
+
         # Fill holes
         filled = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, self.kernel)
         
@@ -103,13 +77,7 @@ class WormSegmenter:
         return cleaned
 
     def segment_frame(self, frame):
-        """
-        Perform full segmentation pipeline on a single frame.
-        Args:
-            frame: Input video frame
-        Returns:
-            Binary mask of segmented worm
-        """
+
         # Preprocess the frame
         binary = self.preprocess_frame(frame)
         
@@ -125,13 +93,7 @@ class WormSegmenter:
         return cleaned_mask
 
 def post_process_mask(mask):
-    """
-    Additional cleanup of the mask using erosion and dilation.
-    Args:
-        mask: Initial binary mask
-    Returns:
-        Cleaned binary mask
-    """
+
     # Create a slightly larger kernel for more aggressive cleaning
     # kernel = np.ones((6,6), np.uint8)  # Increased from 3x3 to 5x5
     
@@ -164,18 +126,9 @@ def post_process_mask(mask):
     plt.tight_layout()
     plt.show()
 
-
-
     return closed
 def process_single_frame(video_path, frame_number=0):
-    """
-    Process a single frame from the video.
-    Args:
-        video_path: Path to input video file
-        frame_number: Which frame to process (default 0)
-    Returns:
-        tuple: (original frame, initial mask, cleaned mask, overlay)
-    """
+
     # Initialize video capture
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -209,9 +162,7 @@ def process_single_frame(video_path, frame_number=0):
     return frame, initial_mask, cleaned_mask, overlay
 
 def display_results(frame, initial_mask, cleaned_mask, overlay):
-    """
-    Display all steps of the process using matplotlib.
-    """
+
     plt.figure(figsize=(18, 15))
 
     plt.subplot(2, 2, 1)
@@ -242,9 +193,7 @@ if __name__ == "__main__":
     
     # Choose which frame to process (e.g., frame 50)
     frame_number = 14
-
-    
-    
+ 
     try:
         # Process single frame
         frame, initial_mask, cleaned_mask, overlay = process_single_frame(video_path, frame_number)
