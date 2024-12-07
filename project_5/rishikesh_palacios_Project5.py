@@ -2,12 +2,9 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.morphology import remove_small_objects
-from scipy.sparse.csgraph import minimum_spanning_tree
-from scipy.spatial.distance import pdist, squareform
 from scipy.interpolate import splprep, splev
 from scipy.spatial import KDTree
-from skimage.morphology import skeletonize  # For skeleton-based endpoint detection
-from scipy.spatial.distance import cdist
+from skimage.morphology import skeletonize
 import networkx as nx
 
 def extract_worm_boundary(binary_img):
@@ -59,57 +56,138 @@ def test_boundary_extraction(image_path):
 
 
 
-##############################################################
-def initialize_control_points(filled_img, num_points=1000):
-    import networkx as nx
+def find_skeleton_endpoints(filled_img):
+    # Skeletonize the filled worm mask
+    skeleton = skeletonize(filled_img > 0)
+
+    # plt.imshow(skeleton, cmap='gray')
+    # plt.show()
+    sk_y, sk_x = np.where(skeleton)
+
+    # Convert into a set for quick lookups
+    skeleton_points = set(zip(sk_x, sk_y))
     
-    # Find worm endpoints
-    y_coords, x_coords = np.where(filled_img > 0)
-    left_x = min(x_coords)
-    right_x = max(x_coords)
-    top_y = min(y_coords)
-    bottom_y = max(y_coords)
-    
-    # Create mask for endpoints
     endpoints = []
-    for x, y in zip(x_coords, y_coords):
-        # Check if point is at extremes
-        if (x == left_x or x == right_x or y == top_y or y == bottom_y):
-            endpoints.append([x, y])
+    # Directions for 8-connectivity neighbors
+    directions = [(-1, -1), (-1, 0), (-1, 1),
+                  (0, -1),           (0, 1),
+                  (1, -1),  (1, 0),  (1, 1)]
+
+    for (sx, sy) in skeleton_points:
+        neighbors = 0
+        for dx, dy in directions:
+            nx, ny = sx+dx, sy+dy
+            if (nx, ny) in skeleton_points:
+                neighbors += 1
+        if neighbors == 1:
+            endpoints.append([sx, sy])
+
+    if len(endpoints) != 2:
+        print(f"Warning: Expected 2 endpoints, found {len(endpoints)}. Check worm shape.")
+    return endpoints
+
+
+
+#############################################################
+# def initialize_control_points(filled_img, num_points=200):
     
-    # Convert to array and cluster nearby points
-    endpoints = np.array(endpoints)
-    from sklearn.cluster import DBSCAN
-    clustering = DBSCAN(eps=10, min_samples=1).fit(endpoints)
-    cluster_centers = []
-    for label in set(clustering.labels_):
-        cluster_points = endpoints[clustering.labels_ == label]
-        cluster_centers.append(np.mean(cluster_points, axis=0))
+#     # Find worm endpoints
+#     y_coords, x_coords = np.where(filled_img > 0)
+#     left_x = min(x_coords)
+#     right_x = max(x_coords)
+#     top_y = min(y_coords)
+#     bottom_y = max(y_coords)
     
-    # Sample internal points
-    points = np.column_stack((x_coords, y_coords))
-    internal_points = num_points - len(cluster_centers)
-    indices = np.random.choice(len(points), internal_points, replace=False)
-    sampled_points = np.vstack([points[indices], cluster_centers])
+#     # Create mask for endpoints
+#     endpoints = []
+#     for x, y in zip(x_coords, y_coords):
+#         # Check if point is at extremes
+#         if (x == left_x or x == right_x or y == top_y or y == bottom_y):
+#             endpoints.append([x, y])
     
-    # Build graph and find path
+#     # Convert to array and cluster nearby points
+#     endpoints = np.array(endpoints)
+#     from sklearn.cluster import DBSCAN
+#     clustering = DBSCAN(eps=10, min_samples=1).fit(endpoints)
+#     cluster_centers = []
+#     for label in set(clustering.labels_):
+#         cluster_points = endpoints[clustering.labels_ == label]
+#         cluster_centers.append(np.mean(cluster_points, axis=0))
+    
+#     # Sample internal points
+#     points = np.column_stack((x_coords, y_coords))
+#     internal_points = num_points - len(cluster_centers)
+#     indices = np.random.choice(len(points), internal_points, replace=False)
+#     sampled_points = np.vstack([points[indices], cluster_centers])
+    
+#     # Build graph and find path
+#     G = nx.Graph()
+#     for i in range(len(sampled_points)):
+#         G.add_node(i)
+#         for j in range(i+1, len(sampled_points)):
+#             dist = np.linalg.norm(sampled_points[i] - sampled_points[j])
+#             G.add_edge(i, j, weight=dist)
+    
+#     MST = nx.minimum_spanning_tree(G)
+#     paths = nx.single_source_shortest_path(MST, 0)
+#     end1 = max(paths.items(), key=lambda x: len(x[1]))[0]
+    
+#     paths = nx.single_source_shortest_path(MST, end1)
+#     end2, longest_path = max(paths.items(), key=lambda x: len(x[1]))
+    
+#     path_points = sampled_points[longest_path]
+    
+#     return path_points, sampled_points
+
+
+def initialize_control_points(filled_img, num_points=200):
+    # First, find the skeleton endpoints to get a reliable head and tail
+    endpoints = find_skeleton_endpoints(filled_img)
+    if len(endpoints) < 2:
+        # Fallback: if something is wrong, just return something
+        # or raise an error
+        print("Could not find two endpoints from skeleton. Check input.")
+        return None, None
+    head_point = np.array(endpoints[0])
+    tail_point = np.array(endpoints[1])
+
+    # Extract all worm points
+    y_coords, x_coords = np.where(filled_img > 0)
+    all_worm_points = np.column_stack((x_coords, y_coords))
+
+    # Reserve 2 points for the endpoints
+    internal_points_count = num_points - 2
+    if internal_points_count > 0:
+        indices = np.random.choice(len(all_worm_points), internal_points_count, replace=False)
+        internal_points = all_worm_points[indices]
+    else:
+        internal_points = np.empty((0,2))
+
+    # Construct final sampled points array with endpoints included
+    sampled_points = np.vstack([internal_points, head_point, tail_point])
+
+    # Build graph and find MST as before
     G = nx.Graph()
     for i in range(len(sampled_points)):
         G.add_node(i)
+    for i in range(len(sampled_points)):
         for j in range(i+1, len(sampled_points)):
             dist = np.linalg.norm(sampled_points[i] - sampled_points[j])
             G.add_edge(i, j, weight=dist)
-    
+
     MST = nx.minimum_spanning_tree(G)
-    paths = nx.single_source_shortest_path(MST, 0)
-    end1 = max(paths.items(), key=lambda x: len(x[1]))[0]
-    
-    paths = nx.single_source_shortest_path(MST, end1)
-    end2, longest_path = max(paths.items(), key=lambda x: len(x[1]))
-    
+
+    # We know that the last two points in sampled_points are head and tail
+    # Or you can explicitly find their indices:
+    head_idx = len(sampled_points) - 2
+    tail_idx = len(sampled_points) - 1
+
+
+    longest_path = nx.shortest_path(MST, source=head_idx, target=tail_idx, weight='weight')
     path_points = sampled_points[longest_path]
-    
+
     return path_points, sampled_points
+
 
 
 def divide_boundary(boundary_points, first_point, last_point):
@@ -155,11 +233,21 @@ def refine_backbone(control_points, boundary_points):
             
             # Add smoothness constraint
             smooth_pos = (cp[i-1] + cp[i+1]) / 2
-            new_pos = 0.7 * midpoint + 0.3 * smooth_pos
+            new_pos = 0.3 * midpoint + 0.7 * smooth_pos
             new_cp.append(new_pos)
         
         # Update control points
         cp[1:-1] = new_cp
+
+    for i in range(1, len(cp)-1):
+        _, idx_left = tree_left.query(cp[i], k=1)
+        _, idx_right = tree_right.query(cp[i], k=1)
+        left_pt = left_boundary[idx_left]
+        right_pt = right_boundary[idx_right]
+        midpoint = (left_pt + right_pt) / 2
+        
+        # Directly set to midpoint without smoothing
+        cp[i] = midpoint
     
     return cp
 
@@ -202,7 +290,7 @@ def generate_cutting_planes(control_points, spacing=1):
         
         return backbone_points, normals
 
-def straighten_worm(binary_mask, control_points, width=100):
+def straighten_worm(binary_mask, control_points, width=50):
     backbone_points, normals = generate_cutting_planes(control_points)
     straightened = np.zeros((len(backbone_points), width), dtype=np.uint8)
     half_width = width // 2
@@ -287,29 +375,24 @@ def segment_worm(video_path, frame_to_analyze_index):
 
     # Display results
     plt.figure(figsize=(12,5))
-    plt.subplot(1,4,1)
-    plt.title(f"Frame of Interest, {frame_to_analyze_index}")
+    plt.subplot(2,2,1)
+    plt.title(f"Frame, {frame_to_analyze_index}")
     plt.imshow(frame_to_analyze, cmap='gray')
-    plt.axis('off')
 
-    plt.subplot(1,4,2)
+    plt.subplot(2,2,2)
     plt.title("Raw Foreground Mask")
     plt.imshow(fgmask, cmap='gray')
-    plt.axis('off')
 
-    plt.subplot(1,4,3)
+    plt.subplot(2,2,3)
     plt.title("After Removing Small Objects")
     plt.imshow(worm_cleaned, cmap='gray')
-    plt.axis('off')
 
-    plt.subplot(1,4,4)
+    plt.subplot(2,2,4)
     plt.title("After Closing Worm")
     plt.imshow(worm_closed, cmap='gray')
-    plt.axis('off')
 
+    plt.tight_layout()
     plt.show()
-
-    print(frame_to_analyze.shape)
 
     return frame_to_analyze, worm_closed
 
@@ -475,20 +558,15 @@ def visualize_processing_steps(video_path, num_points=200):
     # 8. Straightened Results
     plt.figure(figsize=(12, 5))
 
-    # Binary mask straightening
-    plt.subplot(131)
-    straightened_binary = straighten_worm(binary_img, refined_cp, width=200)
-    plt.imshow(straightened_binary, cmap='gray')
-    plt.title('Straightened Worm (Binary)')
 
     # Mask straightening
-    plt.subplot(132)
+    plt.subplot(121)
     straightened_mask = straighten_worm(filled_img, refined_cp, width=200)
     plt.imshow(straightened_mask, cmap='gray')
     plt.title('Straightened Mask')
 
     # Masked original image straightening
-    plt.subplot(133)
+    plt.subplot(122)
     # Create masked original image by setting non-worm pixels to white (255)
     masked_original = original_img.copy()
     # masked_original[filled_img == 0] = 127  # Set background to white
