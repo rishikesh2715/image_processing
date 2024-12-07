@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.morphology import remove_small_objects
 from scipy.sparse.csgraph import minimum_spanning_tree
 from scipy.spatial.distance import pdist, squareform
 from scipy.interpolate import splprep, splev
@@ -232,11 +233,91 @@ def visualize_backbone(binary_mask, control_points):
         
     return vis_img
 
-def visualize_processing_steps(binary_path, original_path, num_points=200):
+def segment_worm(video_path, frame_to_analyze_index):
+    half_window = 50
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print("Error: Could not open video.")
+        exit(1)
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    # Background subtractor
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=50, varThreshold=25, detectShadows=False)
+
+    # Train using frames around the frame of interest
+    start_frame = max(frame_to_analyze_index - half_window, 0)
+    end_frame = min(frame_to_analyze_index + half_window, total_frames - 1)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    for f_idx in range(start_frame, end_frame + 1):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        fgbg.apply(frame)
+    cap.release()
+
+    # Read the frame of interest
+    cap = cv2.VideoCapture(video_path)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_to_analyze_index)
+    ret, frame_to_analyze = cap.read()
+    cap.release()
+
+    if not ret:
+        print(f"Error: Could not read frame at index {frame_to_analyze_index}.")
+        exit(1)
+
+    # Get the foreground mask for the frame of interest
+    fgmask = fgbg.apply(frame_to_analyze, learningRate=0)
+
+    # Convert to boolean mask for remove_small_objects
+    worm_bool = fgmask > 0
+
+    # Set a min_size that keeps the worm but removes small pixels.
+    # Adjust this value based on the worm size and noise level.
+    min_size = 55
+    worm_cleaned_bool = remove_small_objects(worm_bool, min_size=min_size)
+
+    # Convert back to uint8 mask
+    worm_cleaned = (worm_cleaned_bool.astype(np.uint8) * 255)
+
+    # Now apply closing to fill holes inside the worm
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (75,75))
+    worm_closed = cv2.morphologyEx(worm_cleaned, cv2.MORPH_CLOSE, kernel_close)
+
+    # Display results
+    plt.figure(figsize=(12,5))
+    plt.subplot(1,4,1)
+    plt.title(f"Frame of Interest, {frame_to_analyze_index}")
+    plt.imshow(frame_to_analyze, cmap='gray')
+    plt.axis('off')
+
+    plt.subplot(1,4,2)
+    plt.title("Raw Foreground Mask")
+    plt.imshow(fgmask, cmap='gray')
+    plt.axis('off')
+
+    plt.subplot(1,4,3)
+    plt.title("After Removing Small Objects")
+    plt.imshow(worm_cleaned, cmap='gray')
+    plt.axis('off')
+
+    plt.subplot(1,4,4)
+    plt.title("After Closing Worm")
+    plt.imshow(worm_closed, cmap='gray')
+    plt.axis('off')
+
+    plt.show()
+
+    print(frame_to_analyze.shape)
+
+    return frame_to_analyze, worm_closed
+
+def visualize_processing_steps(video_path, num_points=200):
+   
     # Read images
-    binary_img = cv2.imread(binary_path, cv2.IMREAD_GRAYSCALE)
-    original_img = cv2.imread(original_path, cv2.IMREAD_GRAYSCALE)
-    
+    original_img, binary_img = segment_worm(video_path, frame_to_analyze_index=14)
+    original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY)
     # Get all processing steps
     boundary_points, boundary_img, filled_img = extract_worm_boundary(binary_img)
     sampled_points, all_sampled_points = initialize_control_points(filled_img, num_points=num_points)
@@ -420,7 +501,7 @@ def visualize_processing_steps(binary_path, original_path, num_points=200):
     plt.show()
 
 # Usage:
-visualize_processing_steps("intial_mask3.png", "original_frame.png")
+visualize_processing_steps("BZ33C_Chip1D_Worm27.avi")
 
 
 
