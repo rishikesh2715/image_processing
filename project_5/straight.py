@@ -232,106 +232,195 @@ def visualize_backbone(binary_mask, control_points):
         
     return vis_img
 
-
-def visualize_pipeline(binary_path, original_path, num_points=200):
-    # Read both images
+def visualize_processing_steps(binary_path, original_path, num_points=200):
+    # Read images
     binary_img = cv2.imread(binary_path, cv2.IMREAD_GRAYSCALE)
     original_img = cv2.imread(original_path, cv2.IMREAD_GRAYSCALE)
     
-    
+    # Get all processing steps
     boundary_points, boundary_img, filled_img = extract_worm_boundary(binary_img)
-    
-    
     sampled_points, all_sampled_points = initialize_control_points(filled_img, num_points=num_points)
-    
-    
     refined_cp = refine_backbone(sampled_points, boundary_points)
-    
-    
     backbone_points, normals = generate_cutting_planes(refined_cp)
     
-    
-    fig = plt.figure(figsize=(20, 10))
-    
-    
-    plt.subplot(251)
-    plt.imshow(filled_img, cmap='gray')
+    # 1. Original Images
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    plt.imshow(binary_img, cmap='gray')
     plt.title('Binary Mask')
-    
-    plt.subplot(253)
-    debug_img_binary = cv2.cvtColor(filled_img.copy(), cv2.COLOR_GRAY2BGR)
-    
-    for point in all_sampled_points:
-        cv2.circle(debug_img_binary, tuple(point.astype(int)), 2, (255,0,0), -1)
-    for i in range(len(sampled_points)-1):
-        pt1 = tuple(sampled_points[i].astype(int))
-        pt2 = tuple(sampled_points[i+1].astype(int))
-        cv2.circle(debug_img_binary, pt1, 4, (0,0,255), -1)
-        cv2.line(debug_img_binary, pt1, pt2, (0,255,0), 2)
-    plt.imshow(cv2.cvtColor(debug_img_binary, cv2.COLOR_BGR2RGB))
-    plt.title('Initial Path (Binary)')
-    
-    
-    plt.subplot(252)
+    plt.subplot(122)
     plt.imshow(original_img, cmap='gray')
     plt.title('Original Image')
+    plt.suptitle('Step 1: Input Images', fontsize=14)
+    plt.tight_layout()
+    plt.show()
     
-    plt.subplot(254)
-    debug_img_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    # 2. Boundary Detection
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    boundary_vis_binary = cv2.cvtColor(binary_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point in boundary_points:
+        cv2.circle(boundary_vis_binary, tuple(point.astype(int)), 1, (0,0,255), -1)
+    plt.imshow(cv2.cvtColor(boundary_vis_binary, cv2.COLOR_BGR2RGB))
+    plt.title('Boundary Points (Binary)')
     
+    plt.subplot(122)
+    boundary_vis_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point in boundary_points:
+        cv2.circle(boundary_vis_original, tuple(point.astype(int)), 1, (0,0,255), -1)
+    plt.imshow(cv2.cvtColor(boundary_vis_original, cv2.COLOR_BGR2RGB))
+    plt.title('Boundary Points (Original)')
+    plt.suptitle('Step 2: Boundary Detection', fontsize=14)
+    plt.tight_layout()
+    plt.show()
+    
+    # 3. Filled Mask
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    plt.imshow(filled_img, cmap='gray')
+    plt.title('Filled Mask (Binary)')
+    plt.subplot(122)
+    filled_vis_original = cv2.bitwise_and(original_img, original_img, mask=filled_img)
+    plt.imshow(filled_vis_original, cmap='gray')
+    plt.title('Filled Mask (Original)')
+    plt.suptitle('Step 3: Region Filling', fontsize=14)
+    plt.tight_layout()
+    plt.show()
+    
+    # 4. Initial Path
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    init_path_binary = cv2.cvtColor(filled_img.copy(), cv2.COLOR_GRAY2BGR)
     for point in all_sampled_points:
-        cv2.circle(debug_img_original, tuple(point.astype(int)), 2, (255,0,0), -1)
+        cv2.circle(init_path_binary, tuple(point.astype(int)), 2, (255,0,0), -1)
     for i in range(len(sampled_points)-1):
         pt1 = tuple(sampled_points[i].astype(int))
         pt2 = tuple(sampled_points[i+1].astype(int))
-        cv2.circle(debug_img_original, pt1, 4, (0,0,255), -1)
-        cv2.line(debug_img_original, pt1, pt2, (0,255,0), 2)
-    plt.imshow(cv2.cvtColor(debug_img_original, cv2.COLOR_BGR2RGB))
+        cv2.circle(init_path_binary, pt1, 4, (0,0,255), -1)
+        cv2.line(init_path_binary, pt1, pt2, (0,255,0), 2)
+    plt.imshow(cv2.cvtColor(init_path_binary, cv2.COLOR_BGR2RGB))
+    plt.title('Initial Path (Binary)')
+    
+    plt.subplot(122)
+    init_path_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point in all_sampled_points:
+        cv2.circle(init_path_original, tuple(point.astype(int)), 2, (255,0,0), -1)
+    for i in range(len(sampled_points)-1):
+        pt1 = tuple(sampled_points[i].astype(int))
+        pt2 = tuple(sampled_points[i+1].astype(int))
+        cv2.circle(init_path_original, pt1, 4, (0,0,255), -1)
+        cv2.line(init_path_original, pt1, pt2, (0,255,0), 2)
+    plt.imshow(cv2.cvtColor(init_path_original, cv2.COLOR_BGR2RGB))
     plt.title('Initial Path (Original)')
+    plt.suptitle('Step 4: Initial Backbone Path', fontsize=14)
+    plt.tight_layout()
+    plt.show()
     
-    
-    plt.subplot(255)
+    # 5. Boundary Division
+    plt.figure(figsize=(12, 5))
     left_boundary, right_boundary = divide_boundary(boundary_points, refined_cp[0], refined_cp[-1])
-    boundary_vis = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    
+    plt.subplot(121)
+    boundary_div_binary = cv2.cvtColor(filled_img.copy(), cv2.COLOR_GRAY2BGR)
     for point in left_boundary:
-        cv2.circle(boundary_vis, tuple(point.astype(int)), 1, (255,0,0), -1)
+        cv2.circle(boundary_div_binary, tuple(point.astype(int)), 1, (255,0,0), -1)
     for point in right_boundary:
-        cv2.circle(boundary_vis, tuple(point.astype(int)), 1, (0,255,0), -1)
-    plt.imshow(cv2.cvtColor(boundary_vis, cv2.COLOR_BGR2RGB))
+        cv2.circle(boundary_div_binary, tuple(point.astype(int)), 1, (0,255,0), -1)
+    plt.imshow(cv2.cvtColor(boundary_div_binary, cv2.COLOR_BGR2RGB))
+    plt.title('Boundary Division (Binary)')
+    
+    plt.subplot(122)
+    boundary_div_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point in left_boundary:
+        cv2.circle(boundary_div_original, tuple(point.astype(int)), 1, (255,0,0), -1)
+    for point in right_boundary:
+        cv2.circle(boundary_div_original, tuple(point.astype(int)), 1, (0,255,0), -1)
+    plt.imshow(cv2.cvtColor(boundary_div_original, cv2.COLOR_BGR2RGB))
     plt.title('Boundary Division (Original)')
+    plt.suptitle('Step 5: Boundary Division', fontsize=14)
+    plt.tight_layout()
+    plt.show()
     
-    
-    plt.subplot(257)
-    vis_refined = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    # 6. Refined Backbone
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    refined_binary = cv2.cvtColor(filled_img.copy(), cv2.COLOR_GRAY2BGR)
     for point in refined_cp:
-        cv2.circle(vis_refined, tuple(point.astype(int)), 3, (0,0,255), -1)
+        cv2.circle(refined_binary, tuple(point.astype(int)), 3, (0,0,255), -1)
     for i in range(len(backbone_points)-1):
         pt1 = tuple(backbone_points[i].astype(int))
         pt2 = tuple(backbone_points[i+1].astype(int))
-        cv2.line(vis_refined, pt1, pt2, (0,255,0), 1)
-    plt.imshow(cv2.cvtColor(vis_refined, cv2.COLOR_BGR2RGB))
+        cv2.line(refined_binary, pt1, pt2, (0,255,0), 1)
+    plt.imshow(cv2.cvtColor(refined_binary, cv2.COLOR_BGR2RGB))
+    plt.title('Refined Backbone (Binary)')
+    
+    plt.subplot(122)
+    refined_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point in refined_cp:
+        cv2.circle(refined_original, tuple(point.astype(int)), 3, (0,0,255), -1)
+    for i in range(len(backbone_points)-1):
+        pt1 = tuple(backbone_points[i].astype(int))
+        pt2 = tuple(backbone_points[i+1].astype(int))
+        cv2.line(refined_original, pt1, pt2, (0,255,0), 1)
+    plt.imshow(cv2.cvtColor(refined_original, cv2.COLOR_BGR2RGB))
     plt.title('Refined Backbone (Original)')
+    plt.suptitle('Step 6: Refined Backbone', fontsize=14)
+    plt.tight_layout()
+    plt.show()
     
-    
-    plt.subplot(258)
-    vis_planes = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    # 7. Cutting Planes
+    plt.figure(figsize=(12, 5))
+    plt.subplot(121)
+    cutting_binary = cv2.cvtColor(filled_img.copy(), cv2.COLOR_GRAY2BGR)
     for point, normal in zip(backbone_points[::20], normals[::20]):
         pt1 = tuple((point - normal * 50).astype(int))
         pt2 = tuple((point + normal * 50).astype(int))
-        cv2.line(vis_planes, pt1, pt2, (0,0,255), 1)
-    plt.imshow(cv2.cvtColor(vis_planes, cv2.COLOR_BGR2RGB))
+        cv2.line(cutting_binary, pt1, pt2, (0,0,255), 1)
+    plt.imshow(cv2.cvtColor(cutting_binary, cv2.COLOR_BGR2RGB))
+    plt.title('Cutting Planes (Binary)')
+    
+    plt.subplot(122)
+    cutting_original = cv2.cvtColor(original_img.copy(), cv2.COLOR_GRAY2BGR)
+    for point, normal in zip(backbone_points[::20], normals[::20]):
+        pt1 = tuple((point - normal * 50).astype(int))
+        pt2 = tuple((point + normal * 50).astype(int))
+        cv2.line(cutting_original, pt1, pt2, (0,0,255), 1)
+    plt.imshow(cv2.cvtColor(cutting_original, cv2.COLOR_BGR2RGB))
     plt.title('Cutting Planes (Original)')
+    plt.suptitle('Step 7: Cutting Planes', fontsize=14)
+    plt.tight_layout()
+    plt.show()
     
-    
-    plt.subplot(2,5,(9,10))
-    straightened_original = straighten_worm(original_img, refined_cp, width=200)
+    # 8. Straightened Results
+    plt.figure(figsize=(12, 5))
+
+    # Binary mask straightening
+    plt.subplot(131)
+    straightened_binary = straighten_worm(binary_img, refined_cp, width=200)
+    plt.imshow(straightened_binary, cmap='gray')
+    plt.title('Straightened Worm (Binary)')
+
+    # Mask straightening
+    plt.subplot(132)
+    straightened_mask = straighten_worm(filled_img, refined_cp, width=200)
+    plt.imshow(straightened_mask, cmap='gray')
+    plt.title('Straightened Mask')
+
+    # Masked original image straightening
+    plt.subplot(133)
+    # Create masked original image by setting non-worm pixels to white (255)
+    masked_original = original_img.copy()
+    # masked_original[filled_img == 0] = 127  # Set background to white
+    straightened_original = straighten_worm(masked_original, refined_cp, width=200)
     plt.imshow(straightened_original, cmap='gray')
-    plt.title('Straightened Worm (Original)')
-    
+    plt.title('Straightened Worm (Masked Original)')
+
+    plt.suptitle('Step 8: Final Straightened Results', fontsize=14)
     plt.tight_layout()
     plt.show()
 
-visualize_pipeline("initial_mask2.png", "original_frame.png")
+# Usage:
+visualize_processing_steps("intial_mask3.png", "original_frame.png")
 
 
 
